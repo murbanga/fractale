@@ -28,6 +28,7 @@ struct Fractal
 	std::pair<Point, int> nearest(const Point &p) const;
 
 	std::vector<Point> model;
-	std::vector<Point> current;
+	Point *current;
+	size_t current_size;
 	int iterations = 0;
 };

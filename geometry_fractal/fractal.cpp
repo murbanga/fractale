@@ -55,23 +55,29 @@ std::pair<Point, int> Fractal::nearest(const Point &p) const
 void Fractal::clear()
 {
 	model.clear();
-	current.clear();
+	delete[] current;
+	current = nullptr;
+	current_size = 0;
+
 	iterations = 0;
 }
 
 Fractal &Fractal::operator++()
 {
-	if(current.empty())
+	if(!current || current_size < model.size())
 	{
-		current = model;
+		delete[] current;
+		current = new Point[model.size()];
+		memcpy(current, model.data(), model.size() * sizeof(Point));
+		current_size = model.size();
 	}
 
 	size_t m = model.size();
-	size_t n = current.size();
+	size_t n = current_size;
 
-	std::vector<Point> next;
-	next.reserve((n - 1) * (model.size()-1) + 1);
-	next.push_back(current[0]);
+	size_t next_size = (n - 1) * (model.size() - 1) + 1;
+	Point *next = new Point[next_size];
+	next[0] = current[0];
 
 	Point ma = model[0];
 	Point mb = model[m - 1];
@@ -79,6 +85,7 @@ Fractal &Fractal::operator++()
 	float model_length = distance(ma, mb);
 	float model_angle = atan2f(mb.y - ma.y, mb.x - ma.x);
 
+	size_t k = 1;
 	for (size_t i = 0; i < n - 1; ++i)
 	{
 		Point a = current[i];
@@ -95,11 +102,13 @@ Fractal &Fractal::operator++()
 			Point d = {
 				c.x * cos_a - c.y * sin_a + a.x,
 				c.x * sin_a + c.y * cos_a + a.y };
-			next.push_back(d);
+			next[k++] = d;
 		}
 	}
 
-	current = std::move(next);
+	delete[] current;
+	current = next;
+	current_size = k;
 	++iterations;
 
 	return *this;

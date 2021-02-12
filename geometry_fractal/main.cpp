@@ -59,11 +59,11 @@ void unproj(double x, double y, double &objx, double &objy)
 	gluUnProject(x, viewport[3] - y, 0, model, proj, viewport, &objx, &objy, &objz);
 }
 
-void update_va(GLuint arr, GLuint buf, const std::vector<Point> &points)
+void update_va(GLuint arr, GLuint buf, const Point *points, size_t npoints)
 {
 	glBindVertexArray(arr);
 	glBindBuffer(GL_ARRAY_BUFFER, buf);
-	glBufferData(GL_ARRAY_BUFFER, points.size()*2*sizeof(float), points.data(), GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, npoints*2*sizeof(float), points, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(0);
 }
@@ -120,14 +120,15 @@ void mouse(GLFWwindow *window, int button, int state, int flags)
 		else if (state == GLFW_RELEASE) {
 			if (drag_mode == DragMode::MovingObject)
 			{
-				fractal.current.clear();
+				delete[] fractal.current;
+				fractal.current = nullptr;
 				int n = fractal.iterations;
 				fractal.iterations = 0;
 				for (int i = 0; i < n; ++i)
 				{
 					++fractal;
 				}
-				update_va(current_array, current_buf, fractal.current);
+				update_va(current_array, current_buf, fractal.current, fractal.current_size);
 			}
 			drag_mode = DragMode::Disabled;
 		}
@@ -295,7 +296,7 @@ void display(GLFWwindow *window)
 		glVertex2f(pt.x, pt.y);
 	}
 	glEnd();*/
-	glDrawArrays(GL_LINE_STRIP, 0, fractal.current.size());
+	glDrawArrays(GL_LINE_STRIP, 0, fractal.current_size);
 
 	glPopMatrix();
 }
@@ -323,37 +324,20 @@ void draw_ui()
 	{
 		operator_mode = OperatorMode::Running;
 		++fractal;
-		update_va(current_array, current_buf, fractal.current);
+		update_va(current_array, current_buf, fractal.current, fractal.current_size);
 	}
 	Text("model %llu points", fractal.model.size());
-	Text("actual %llu points", fractal.current.size());
+	Text("actual %llu points", fractal.current_size);
 	End();
 }
 
 int main(int argc, char **argv)
 {
-#if 1
-	fractal.model = {
-{ -14.8888893, -7.47222233 },
-{ -1.05555558, -7.47222233 },
-{3.13888907, 8.13888836 },
-{1.11111116, -7.55555534 },
-{ 16.5000000, -6.50000000 },
-{ 17.2222233, -5.38888884 },
-{ 20.8055553, -4.94444418 } };
-
-	for (int i = 0; i < 9; ++i)
-	{
-		++fractal;
-	}
-	operator_mode = OperatorMode::Running;
-#endif
-
 	glfwSetErrorCallback(glfw_error_callback);
 	if (!glfwInit())
 		return 1;
 
-	GLFWwindow *window = glfwCreateWindow(1280, 720, "Road viz", nullptr, nullptr);
+	GLFWwindow *window = glfwCreateWindow(1280, 720, "fractale", nullptr, nullptr);
 	if (!window)
 		return 1;
 	glfwMakeContextCurrent(window);
@@ -384,7 +368,24 @@ int main(int argc, char **argv)
 	glGenVertexArrays(1, &current_array);
 	glGenBuffers(1, &current_buf);
 
-	// Main loop
+#if 0
+	fractal.model = {
+		{ -14.8888893, -7.47222233 },
+		{ -1.05555558, -7.47222233 },
+		{3.13888907, 8.13888836 },
+		{1.11111116, -7.55555534 },
+		{ 16.5000000, -6.50000000 },
+		{ 17.2222233, -5.38888884 },
+		{ 20.8055553, -4.94444418 } };
+
+	for (int i = 0; i < 9; ++i)
+	{
+		++fractal;
+	}
+	operator_mode = OperatorMode::Running;
+	update_va(current_array, current_buf, fractal.current, fractal.current_size);
+#endif
+
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
