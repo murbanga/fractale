@@ -1,4 +1,5 @@
 #include "fractal.h"
+#include <float.h>
 
 double distance(const Point &pt, double x, double y)
 {
