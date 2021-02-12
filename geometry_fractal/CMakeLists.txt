@@ -1,6 +1,6 @@
 
 add_executable(geometry_fractal
-	main.cpp)
+	main.cpp fractal.h fractal.cpp)
 
 set_property(TARGET geometry_fractal PROPERTY CXX_STANDARD 17)
 target_link_libraries(geometry_fractal imgui glfw)

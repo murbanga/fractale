@@ -11,9 +11,15 @@
 #include "imgui_impl_opengl2.h"
 #include "imgui_stdlib.h"
 
-static double zoom = 2;
-static double modelx = 0;
-static double modely = 0;
+#include "fractal.h"
+
+static Fractal fractal;
+
+enum class OperatorMode
+{
+	Constructing,
+	Running,
+};
 
 enum class DragMode
 {
@@ -22,12 +28,20 @@ enum class DragMode
 	MovingObject = 2,
 };
 
+static const int point_selection_max_distance_px = 4;
+
+static OperatorMode operator_mode;
+static double zoom = 2;
+static double modelx = 0;
+static double modely = 0;
+static double last_pixel_size = -1;
+
 static DragMode drag_mode = DragMode::Disabled;
 static double drag_startx = -1;
 static double drag_starty = -1;
-static int drag_iterations = 0;
 static double drag_start_modelx;
 static double drag_start_modely;
+static int moving_model_index = -1;
 
 void unproj(double x, double y, double &objx, double &objy)
 {
@@ -55,8 +69,6 @@ void mouse(GLFWwindow *window, int button, int state, int flags)
 		if (state == GLFW_PRESS) {
 			if (flags & GLFW_MOD_CONTROL)
 			{
-			}
-			else {
 				drag_mode = DragMode::Panning;
 				double x, y;
 				glfwGetCursorPos(window, &x, &y);
@@ -64,7 +76,33 @@ void mouse(GLFWwindow *window, int button, int state, int flags)
 				drag_starty = y;
 				drag_start_modelx = modelx;
 				drag_start_modely = modely;
-				drag_iterations = 0;
+				//drag_iterations = 0;
+			}
+			else
+			{
+				double x, y;
+				glfwGetCursorPos(window, &x, &y);
+				double ptx, pty;
+				unproj(x, y, ptx, pty);
+				Point mouse{ static_cast<float>(ptx),static_cast<float>(pty) };
+				auto [nearest, i] = fractal.nearest(mouse);
+
+				if (i >= 0 && distance(nearest, mouse) < point_selection_max_distance_px * last_pixel_size)
+				{
+					drag_mode = DragMode::MovingObject;
+					drag_startx = x;
+					drag_starty = y;
+					drag_start_modelx = nearest.x;
+					drag_start_modely = nearest.y;
+					moving_model_index = i;
+				}
+				else
+				{
+					if (operator_mode == OperatorMode::Constructing)
+					{
+						fractal.model.push_back(mouse);
+					}
+				}
 			}
 		}
 		else if (state == GLFW_RELEASE) {
@@ -73,6 +111,20 @@ void mouse(GLFWwindow *window, int button, int state, int flags)
 		break;
 
 	case GLFW_MOUSE_BUTTON_RIGHT:
+		if (state == GLFW_PRESS)
+		{
+			double x, y;
+			glfwGetCursorPos(window, &x, &y);
+			double ptx, pty;
+			unproj(x, y, ptx, pty);
+			Point mouse{ static_cast<float>(ptx),static_cast<float>(pty) };
+			auto [nearest, i] = fractal.nearest(mouse);
+			if (i >= 0 && distance(nearest, mouse) < point_selection_max_distance_px * last_pixel_size &&
+				operator_mode == OperatorMode::Constructing)
+			{
+				fractal.model.erase(fractal.model.begin() + i);
+			}
+		}
 		break;
 	}
 	glfwPostEmptyEvent();
@@ -96,27 +148,39 @@ void scroll(GLFWwindow *window, double xscroll, double yscroll)
 
 void motion(GLFWwindow *window, double x, double y)
 {
+	if (drag_mode == DragMode::Disabled)
+		return;
+
+	double startx, starty, endx, endy;
+	unproj(drag_startx, drag_starty, startx, starty);
+	unproj(x, y, endx, endy);
+
 	switch (drag_mode) {
 	case DragMode::Panning:
 	{
-		double startx, starty, endx, endy;
-		unproj(drag_startx, drag_starty, startx, starty);
-		unproj(x, y, endx, endy);
 		modelx = drag_start_modelx + startx - endx;
 		modely = drag_start_modely + starty - endy;
-		drag_iterations++;
+		//drag_iterations++;
 		break;
 	}
 	case DragMode::MovingObject:
+		fractal.model[moving_model_index].x = static_cast<float>(drag_start_modelx + endx - startx);
+		fractal.model[moving_model_index].y = static_cast<float>(drag_start_modely + endy - starty);
 		break;
 	}
 }
 
 void display(GLFWwindow *window)
 {
+	double x, y;
+	glfwGetCursorPos(window, &x, &y);
+	double mousex, mousey;
+	unproj(x, y, mousex, mousey);
+
 	int width;
 	int height;
 	glfwGetFramebufferSize(window, &width, &height);
+
 	double model_width = 10;
 	double model_height = 10;
 	double model_ar = model_width / model_height;
@@ -133,6 +197,9 @@ void display(GLFWwindow *window)
 	double model_right = modelx + model_width / 2 * zoom;
 	double model_top = modely - model_height / 2 * zoom;
 	double model_bottom = modely + model_height / 2 * zoom;
+	double pixel_size = (model_right - model_left) / width;
+
+	last_pixel_size = pixel_size;
 
 	glViewport(0, 0, width, height);
 
@@ -173,7 +240,37 @@ void display(GLFWwindow *window)
 	glPushMatrix();
 	glTranslatef(0.f, 0.f, 1.f);
 	
-	// draw geometry here
+	glColor3f(1, 1, 1);
+	glBegin(GL_LINE_STRIP);
+	for (auto &pt : fractal.model)
+	{
+		glVertex2f(pt.x, pt.y);
+	}
+	glEnd();
+
+	glPointSize(4.0);
+	glBegin(GL_POINTS);
+	for(size_t i = 0; i < fractal.model.size(); ++i)
+	{
+		if (distance(fractal.model[i], mousex, mousey) < point_selection_max_distance_px * pixel_size)
+			glColor3f(1, 0, 0);
+		else
+		{
+			if (i == 0)
+				glColor3f(0.5, 1, 0.5);
+			else
+				glColor3f(1, 1, 1);
+		}
+		glVertex2f(fractal.model[i].x, fractal.model[i].y);
+	}
+	glEnd();
+
+	glBegin(GL_LINE_STRIP);
+	for (auto &pt : fractal.current)
+	{
+		glVertex2f(pt.x, pt.y);
+	}
+	glEnd();
 
 	glPopMatrix();
 }
@@ -181,6 +278,30 @@ void display(GLFWwindow *window)
 void glfw_error_callback(int error, const char *description)
 {
 	fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+}
+
+void draw_ui()
+{
+	using namespace ImGui;
+	if (!Begin("fractal"))
+	{
+		return;
+	}
+
+	if (Button("new"))
+	{
+		fractal.clear();
+		operator_mode = OperatorMode::Constructing;
+	}
+	SameLine();
+	if (Button("next") && fractal.model.size() > 2)
+	{
+		operator_mode = OperatorMode::Running;
+		++fractal;
+	}
+	Text("model %llu points", fractal.model.size());
+	Text("actual %llu points", fractal.current.size());
+	End();
 }
 
 int main(int argc, char **argv)
@@ -223,6 +344,7 @@ int main(int argc, char **argv)
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
+		draw_ui();
 
 		ImGui::Render();
 
