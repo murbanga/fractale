@@ -55,6 +55,7 @@ void Fractal::clear()
 {
 	model.clear();
 	current.clear();
+	iterations = 0;
 }
 
 Fractal &Fractal::operator++()
@@ -84,15 +85,21 @@ Fractal &Fractal::operator++()
 
 		float scale = distance(a, b) / model_length;
 		float angle = atan2f(b.y - a.y, b.x - a.x) - model_angle;
+		float cos_a = cosf(angle);
+		float sin_a = sinf(angle);
 
 		for (size_t j = 1; j < m; ++j)
 		{
-			Point pt = rotate((model[j] - ma) * scale, angle) + a;
-			next.push_back(pt);
+			Point c = (model[j] - ma) * scale;
+			Point d = {
+				c.x * cos_a - c.y * sin_a + a.x,
+				c.x * sin_a + c.y * cos_a + a.y };
+			next.push_back(d);
 		}
 	}
 
 	current = std::move(next);
+	++iterations;
 
 	return *this;
 }

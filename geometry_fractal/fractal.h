@@ -24,10 +24,9 @@ struct Fractal
 {
 	void clear();
 	Fractal& operator++();
-	BoundingBox bounding_box() const;
 	std::pair<Point, int> nearest(const Point &p) const;
 
 	std::vector<Point> model;
 	std::vector<Point> current;
-	int iterations;
+	int iterations = 0;
 };

@@ -2,13 +2,13 @@
 #include <Windows.h>
 #endif
 
-#include <GL/gl.h>
+#include <glad/gl.h>
 #include <GL/glu.h>
 #include "GLFW/glfw3.h"
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl2.h"
+#include "imgui_impl_opengl3.h"
 #include "imgui_stdlib.h"
 
 #include "fractal.h"
@@ -43,6 +43,9 @@ static double drag_start_modelx;
 static double drag_start_modely;
 static int moving_model_index = -1;
 
+static GLuint current_array;
+static GLuint current_buf;
+
 void unproj(double x, double y, double &objx, double &objy)
 {
 	double model[16];
@@ -54,6 +57,15 @@ void unproj(double x, double y, double &objx, double &objy)
 	glGetDoublev(GL_PROJECTION_MATRIX, proj);
 	glGetIntegerv(GL_VIEWPORT, viewport);
 	gluUnProject(x, viewport[3] - y, 0, model, proj, viewport, &objx, &objy, &objz);
+}
+
+void update_va(GLuint arr, GLuint buf, const std::vector<Point> &points)
+{
+	glBindVertexArray(arr);
+	glBindBuffer(GL_ARRAY_BUFFER, buf);
+	glBufferData(GL_ARRAY_BUFFER, points.size()*2*sizeof(float), points.data(), GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
 }
 
 void key(GLFWwindow *window, int key, int scancode, int action, int flags)
@@ -106,6 +118,17 @@ void mouse(GLFWwindow *window, int button, int state, int flags)
 			}
 		}
 		else if (state == GLFW_RELEASE) {
+			if (drag_mode == DragMode::MovingObject)
+			{
+				fractal.current.clear();
+				int n = fractal.iterations;
+				fractal.iterations = 0;
+				for (int i = 0; i < n; ++i)
+				{
+					++fractal;
+				}
+				update_va(current_array, current_buf, fractal.current);
+			}
 			drag_mode = DragMode::Disabled;
 		}
 		break;
@@ -265,12 +288,14 @@ void display(GLFWwindow *window)
 	}
 	glEnd();
 
-	glBegin(GL_LINE_STRIP);
+	glColor3f(1, 1, 1);
+	/*glBegin(GL_LINE_STRIP);
 	for (auto &pt : fractal.current)
 	{
 		glVertex2f(pt.x, pt.y);
 	}
-	glEnd();
+	glEnd();*/
+	glDrawArrays(GL_LINE_STRIP, 0, fractal.current.size());
 
 	glPopMatrix();
 }
@@ -298,6 +323,7 @@ void draw_ui()
 	{
 		operator_mode = OperatorMode::Running;
 		++fractal;
+		update_va(current_array, current_buf, fractal.current);
 	}
 	Text("model %llu points", fractal.model.size());
 	Text("actual %llu points", fractal.current.size());
@@ -306,6 +332,23 @@ void draw_ui()
 
 int main(int argc, char **argv)
 {
+#if 1
+	fractal.model = {
+{ -14.8888893, -7.47222233 },
+{ -1.05555558, -7.47222233 },
+{3.13888907, 8.13888836 },
+{1.11111116, -7.55555534 },
+{ 16.5000000, -6.50000000 },
+{ 17.2222233, -5.38888884 },
+{ 20.8055553, -4.94444418 } };
+
+	for (int i = 0; i < 9; ++i)
+	{
+		++fractal;
+	}
+	operator_mode = OperatorMode::Running;
+#endif
+
 	glfwSetErrorCallback(glfw_error_callback);
 	if (!glfwInit())
 		return 1;
@@ -321,6 +364,8 @@ int main(int argc, char **argv)
 	glfwSetCursorPosCallback(window, motion);
 	glfwSetKeyCallback(window, key);
 
+	gladLoadGL(glfwGetProcAddress);
+
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -332,15 +377,18 @@ int main(int argc, char **argv)
 
 	// Setup Platform/Renderer bindings
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
-	ImGui_ImplOpenGL2_Init();
+	ImGui_ImplOpenGL3_Init();
 
 	io.FontDefault = io.Fonts->AddFontDefault();
+
+	glGenVertexArrays(1, &current_array);
+	glGenBuffers(1, &current_buf);
 
 	// Main loop
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
-		ImGui_ImplOpenGL2_NewFrame();
+		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
@@ -350,13 +398,13 @@ int main(int argc, char **argv)
 
 		display(window);
 
-		ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 		glfwMakeContextCurrent(window);
 		glfwSwapBuffers(window);
 	}
 
-	ImGui_ImplOpenGL2_Shutdown();
+	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
 

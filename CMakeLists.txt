@@ -19,17 +19,19 @@ add_library(imgui
 	imgui/imstb_truetype.h
 	imgui/imgui_tables.cpp
 	imgui/imgui_widgets.cpp
-	imgui/backends/imgui_impl_opengl2.h
-	imgui/backends/imgui_impl_opengl2.cpp
+	imgui/backends/imgui_impl_opengl3.h
+	imgui/backends/imgui_impl_opengl3.cpp
 	imgui/backends/imgui_impl_glfw.h
 	imgui/backends/imgui_impl_glfw.cpp
 	imgui/misc/cpp/imgui_stdlib.h
-	imgui/misc/cpp/imgui_stdlib.cpp)
+	imgui/misc/cpp/imgui_stdlib.cpp
+	glfw/deps/glad_gl.c)
 
 include_directories(
 	imgui
 	imgui/backends
 	imgui/misc/cpp
-	glfw/include)
+	glfw/include
+	glfw/deps)
 
 add_subdirectory(geometry_fractal)
