@@ -37,3 +37,5 @@ include_directories(
 	glfw/deps)
 
 add_subdirectory(geometry_fractal)
+
+add_subdirectory(mandelbrot_fractal)
