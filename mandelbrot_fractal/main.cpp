@@ -50,7 +50,7 @@ static Profiler prof;
 static struct progress_info prog_info;
 static int curr_precision = Precision::Single;
 
-constexpr int smoothed_n = 16;
+constexpr int smoothed_n = 60;
 static double fps = 0;
 static double smoothed_fps[smoothed_n];
 
@@ -87,12 +87,11 @@ void update_fractal(const rect<float> &next_fractal)
 	prog_info.progress_den = image.height;
 
 #if 1
-	const int nthreads = std::min(4, (int)std::thread::hardware_concurrency());
+	const int nthreads = min(16, (int)thread::hardware_concurrency());
 
-	calc_pool.start(nthreads, image.height / 4, [&](int i) {
-		mandelbrot(image, 0, i, image.width, i + 1, fractal, max_iterations,
-		           palette);
-		prog_info.progress_num++; // = (i + 1) * 100 / image.height;
+	calc_pool.start(nthreads, image.height / nthreads, [&](int i) {
+		mandelbrot(image, 0, i, image.width, min(i + 1, image.height), fractal, max_iterations, palette);
+		prog_info.progress_num++;
 	});
 #else
 	mandelbrot_plain(image.buf, 0, 0, image.width, image.height, image.width, fractal, max_iterations, palette);
