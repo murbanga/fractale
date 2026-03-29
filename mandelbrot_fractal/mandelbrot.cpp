@@ -1,7 +1,8 @@
 #include <stdint.h>
 #include "mandelbrot.h"
 
-int mandelbrot(Image &image, int left, int top, int width, int height, const rect<float> &r, int n,
+template<>
+int mandelbrot<float>(Image &image, int left, int top, int width, int height, const Rect<float> &r, int n,
                      const uint32_t *palette) {
 	constexpr float max_radius = 2 * 2;
 	const float scalex = (r.x1 - r.x0) / image.width;

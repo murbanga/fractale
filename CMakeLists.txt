@@ -34,7 +34,8 @@ include_directories(
 	imgui/backends
 	imgui/misc/cpp
 	glfw/include
-	glfw/deps)
+	glfw/deps
+	d:/boost_1_90_0)
 
 add_subdirectory(geometry_fractal)
 

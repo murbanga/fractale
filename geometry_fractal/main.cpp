@@ -296,7 +296,7 @@ void display(GLFWwindow *window)
 		glVertex2f(pt.x, pt.y);
 	}
 	glEnd();*/
-	glDrawArrays(GL_LINE_STRIP, 0, fractal.current_size);
+	glDrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(fractal.current_size));
 
 	glPopMatrix();
 }
