@@ -8,3 +8,4 @@ BreakBeforeBraces: Custom
 BraceWrapping:
   AfterEnum: true
   AfterFunction: true
+AccessModifierOffset: 0

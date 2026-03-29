@@ -1,15 +1,12 @@
 #include <stdint.h>
-#include "debugging.h"
 #include "mandelbrot.h"
 
-int mandelbrot_plain(uint8_t *buf, int left, int top, int width, int height, int stride, const rect<float> &r, int n,
+int mandelbrot(Image &image, int left, int top, int width, int height, const rect<float> &r, int n,
                      const uint32_t *palette) {
 	constexpr float max_radius = 2 * 2;
-	const float scalex = (r.x1 - r.x0) / width;
-	const float scaley = (r.y1 - r.y0) / height;
-	uint32_t *pixels = reinterpret_cast<uint32_t *>(buf);
-
-	Profiler prof;
+	const float scalex = (r.x1 - r.x0) / image.width;
+	const float scaley = (r.y1 - r.y0) / image.height;
+	uint32_t *pixels = reinterpret_cast<uint32_t *>(image.buf);
 
 	for (int y = top; y < height; ++y) {
 		for (int x = left; x < width; ++x) {
@@ -25,7 +22,7 @@ int mandelbrot_plain(uint8_t *buf, int left, int top, int width, int height, int
 				i++;
 			}
 
-			int idx = x + y * stride;
+			int idx = x + y * image.width;
 			if (i == n)
 				pixels[idx] = 0;
 			else

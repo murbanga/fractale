@@ -1,8 +1,10 @@
 #ifdef WIN32
+#define NOMINMAX
 #include <Windows.h>
 #endif
 
 #include <list>
+#include <algorithm>
 
 #include <glad/gl.h>
 #include <GL/glu.h>
@@ -15,19 +17,20 @@
 
 #include "debugging.h"
 #include "mandelbrot.h"
+#include "pool.h"
+#include "palette.h"
+
+using namespace std;
 
 enum Precision
 {
 	Single = 0,
-	Double,
-	Large
+	Double = 1,
+	Large = 2,
 };
 
 static GLuint tex;
-static uint8_t *image_buf = nullptr;
-static size_t image_buf_size = 0;
-static int image_width = 1280;
-static int image_height = 720;
+static Image image;
 
 static int max_iterations = 1024;
 static uint32_t palette[1024];
@@ -41,8 +44,10 @@ static int drag_stop_y = -1;
 static rect<float> fractal;
 static std::list<rect<float>> zoom_history;
 
+static pool calc_pool;
+
+static Profiler prof;
 static struct progress_info prog_info;
-static bool is_fractal_running = false;
 static int curr_precision = Precision::Single;
 
 constexpr int smoothed_n = 16;
@@ -65,23 +70,11 @@ template <typename T> rect<T> fix_aspect_ratio(const rect<T> &model, int width, 
 	return {model.x0, static_cast<T>(model.x0 + model_width), model.y0, static_cast<T>(model.y0 + model_height)};
 }
 
-void update_image(int width, int height)
+void update_texture(const Image &image)
 {
-	if (!image_buf || width * height * 4 > image_buf_size) {
-		delete[] image_buf;
-		image_buf_size = width * height * 4;
-		image_buf = new uint8_t[image_buf_size];
-	}
-
-	image_width = width;
-	image_height = height;
-
-	fractal = fix_aspect_ratio(fractal, width, height);
-	mandelbrot_plain(image_buf, 0, 0, image_width, image_height, image_width, fractal, max_iterations, palette);
-
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_buf);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.buf);
 	glDisable(GL_TEXTURE_2D);
 }
 
@@ -89,16 +82,23 @@ void update_fractal(const rect<float> &next_fractal)
 {
 	fractal = next_fractal;
 
-	is_fractal_running = true;
+	prof.start();
+	prog_info.progress_num = 0;
+	prog_info.progress_den = image.height;
 
-	mandelbrot_plain(image_buf, 0, 0, image_width, image_height, image_width, fractal, max_iterations, palette);
+#if 1
+	const int nthreads = std::min(4, (int)std::thread::hardware_concurrency());
 
-	glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_buf);
-	glDisable(GL_TEXTURE_2D);
-
-	is_fractal_running = false;
+	calc_pool.start(nthreads, image.height / 4, [&](int i) {
+		mandelbrot(image, 0, i, image.width, i + 1, fractal, max_iterations,
+		           palette);
+		prog_info.progress_num++; // = (i + 1) * 100 / image.height;
+	});
+#else
+	mandelbrot_plain(image.buf, 0, 0, image.width, image.height, image.width, fractal, max_iterations, palette);
+	prog_info.progress = 100;
+#endif
+	image.idx++;
 }
 
 void update_fractal(int width, int height, int x0, int y0, int x1, int y1)
@@ -110,6 +110,22 @@ void update_fractal(int width, int height, int x0, int y0, int x1, int y1)
 	next_fractal.y1 = (fractal.y1 - fractal.y0) * y1 / height + fractal.y0;
 
 	update_fractal(next_fractal);
+}
+
+void update_image(int width, int height)
+{
+	if (!image.buf || width * height * 4 > image.buf_size) {
+		delete[] image.buf;
+		image.buf_size = width * height * 4;
+		image.buf = new uint8_t[image.buf_size];
+	}
+
+	image.width = width;
+	image.height = height;
+
+	fractal = fix_aspect_ratio(fractal, width, height);
+
+	update_fractal(fractal);
 }
 
 void key(GLFWwindow *window, int key, int scancode, int action, int flags)
@@ -181,7 +197,7 @@ void display(GLFWwindow *window)
 	int height;
 	glfwGetFramebufferSize(window, &width, &height);
 
-	if (image_width != width || image_height != height) {
+	if (image.width != width || image.height != height) {
 		update_image(width, height);
 	}
 
@@ -234,7 +250,7 @@ void draw_ui(GLFWwindow *window)
 	}
 
 	if (Button("zoom in")) {
-		if (!is_fractal_running && drag_start_x > -1 && drag_start_y > -1) {
+		if (drag_start_x > -1 && drag_start_y > -1) {
 			int width;
 			int height;
 			glfwGetFramebufferSize(window, &width, &height);
@@ -269,7 +285,9 @@ void draw_ui(GLFWwindow *window)
 	if (InputInt("Iterations", &max_iterations)) {
 	}
 
-	Text("progress %d%%", (int)prog_info.progress);
+	Separator();
+
+	Text("progress %d%%", prog_info.progress_num * 100 / prog_info.progress_den);
 	Text("last execution time %.4lf sec", prog_info.execution_time_sec);
 
 	double v = 0;
@@ -280,69 +298,6 @@ void draw_ui(GLFWwindow *window)
 	End();
 }
 
-uint32_t pack(double r, double g, double b)
-{
-	return (static_cast<uint32_t>(r * 255) & 0xFF) | ((static_cast<uint32_t>(g * 255) & 0xFF) << 8) |
-	       ((static_cast<uint32_t>(b * 255) & 0xFF) << 16);
-}
-
-uint32_t hsv2rgb(double h, double s, double v)
-{
-	double hh, p, q, t, ff;
-	long i;
-	double r, g, b;
-
-	if (s <= 0.0) { // < is bogus, just shuts up warnings
-		r = v;
-		g = v;
-		b = v;
-		return pack(r, g, b);
-	}
-	hh = h - ((int)h / 360 * 360);
-	hh /= 60.0;
-	i = (long)hh;
-	ff = hh - i;
-	p = v * (1.0 - s);
-	q = v * (1.0 - (s * ff));
-	t = v * (1.0 - (s * (1.0 - ff)));
-
-	switch (i) {
-	case 0:
-		r = v;
-		g = t;
-		b = p;
-		break;
-	case 1:
-		r = q;
-		g = v;
-		b = p;
-		break;
-	case 2:
-		r = p;
-		g = v;
-		b = t;
-		break;
-
-	case 3:
-		r = p;
-		g = q;
-		b = v;
-		break;
-	case 4:
-		r = t;
-		g = p;
-		b = v;
-		break;
-	case 5:
-	default:
-		r = v;
-		g = p;
-		b = q;
-		break;
-	}
-	return pack(r, g, b);
-}
-
 int main(int argc, char **argv)
 {
 	int palette_size = sizeof(palette) / sizeof(palette[0]);
@@ -350,18 +305,18 @@ int main(int argc, char **argv)
 		palette[i] = hsv2rgb(double(i) * 360 * 8 / palette_size, 0.8, 0.8);
 	}
 
-	const float ar = float(image_width) / float(image_height);
+	const float ar = float(image.width) / float(image.height);
 	const float scale = 0.003f;
-	fractal.x0 = -image_width / 2 * scale - 1;
-	fractal.x1 = +image_width / 2 * scale - 1;
-	fractal.y0 = -image_width / ar / 2 * scale;
-	fractal.y1 = +image_width / ar / 2 * scale;
+	fractal.x0 = -image.width / 2 * scale - 1;
+	fractal.x1 = +image.width / 2 * scale - 1;
+	fractal.y0 = -image.width / ar / 2 * scale;
+	fractal.y1 = +image.width / ar / 2 * scale;
 
 	glfwSetErrorCallback(glfw_error_callback);
 	if (!glfwInit())
 		return 1;
 
-	GLFWwindow *window = glfwCreateWindow(image_width, image_height, "fractale", nullptr, nullptr);
+	GLFWwindow *window = glfwCreateWindow(image.width, image.height, "fractale", nullptr, nullptr);
 	if (!window)
 		return 1;
 	glfwMakeContextCurrent(window);
@@ -392,11 +347,11 @@ int main(int argc, char **argv)
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glDisable(GL_TEXTURE_2D);
 
-	update_image(image_width, image_height);
+	update_image(image.width, image.height);
 
-	Profiler prof;
-	double prev_time = prof.get();
+	double prev_time = Profiler::get();
 	int smoothed_i = 0;
+	int prev_image_idx = -1;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -408,6 +363,13 @@ int main(int argc, char **argv)
 
 		ImGui::Render();
 
+		if (calc_pool.is_finished() && image.idx != prev_image_idx) {
+			update_texture(image);
+			calc_pool.join();
+			prog_info.execution_time_sec = prof.elapsed_time();
+			prev_image_idx = image.idx;
+		}
+
 		display(window);
 
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -415,10 +377,9 @@ int main(int argc, char **argv)
 		glfwMakeContextCurrent(window);
 		glfwSwapBuffers(window);
 
-		double t = prof.get();
+		double t = Profiler::get();
 		fps = 1.0 / (t - prev_time);
 		prev_time = t;
-
 		smoothed_fps[smoothed_i++ % smoothed_n] = fps;
 	}
 
@@ -429,7 +390,7 @@ int main(int argc, char **argv)
 	glfwDestroyWindow(window);
 	glfwTerminate();
 
-	delete[] image_buf;
+	delete[] image.buf;
 
 	return 0;
 }

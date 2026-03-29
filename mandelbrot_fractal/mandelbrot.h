@@ -7,5 +7,13 @@ template <typename T> struct rect {
 	T y1;
 };
 
-int mandelbrot_plain(uint8_t *buf, int left, int top, int width, int height, int stride, const rect<float> &r, int n,
+struct Image {
+	uint8_t *buf = nullptr;
+	size_t buf_size = 0;
+	int width = 1280;
+	int height = 720;
+	int idx = 0;
+};
+
+int mandelbrot(Image &image, int left, int top, int width, int height, const rect<float> &r, int n,
                      const uint32_t *palette);

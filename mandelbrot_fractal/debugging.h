@@ -7,19 +7,33 @@
 
 struct progress_info
 {
-	std::atomic<int> progress = 0;
+	std::atomic<int> progress_num = 0;
+	int progress_den = 0;
 	double execution_time_sec = 0;
 };
+
+#define PROF	Profiler _prof(__FUNCTION__)
 
 class Profiler
 {
 public:
 	Profiler()
 	{
+		start();
+	}
+
+	~Profiler()
+	{
+		double t = elapsed_time();
+	}
+
+	void start()
+	{
 #ifdef WIN32
 		LARGE_INTEGER i;
 		QueryPerformanceCounter(&i);
 		beg = i.QuadPart;
+		QueryPerformanceFrequency(&freq);
 #else
 		timeval tv;
 		gettimeofday(&tv, nullptr);
@@ -30,9 +44,8 @@ public:
 	double elapsed_time() const
 	{
 #ifdef WIN32
-		LARGE_INTEGER end, freq;
+		LARGE_INTEGER end;
 		QueryPerformanceCounter(&end);
-		QueryPerformanceFrequency(&freq);
 		return double(end.QuadPart - beg) / double(freq.QuadPart);
 #else
 		timeval tv;
@@ -42,7 +55,7 @@ public:
 #endif
 	}
 
-	double get() const
+	static double get()
 	{
 #ifdef WIN32
 		LARGE_INTEGER end, freq;
@@ -58,4 +71,5 @@ public:
 	}
 private:
 	uint64_t beg;
+	LARGE_INTEGER freq;
 };
