@@ -14,6 +14,8 @@ int mandelbrot<T>(Image &image, int left, int top, int width, int height, const 
 		for (int x = left; x < width; ++x) {
 			const T u0 = T(x) * scalex + r.x0;
 			const T v0 = T(y) * scaley + r.y0;
+
+#if 1
 			T u = 0, v = 0;
 
 			int i = 0;
@@ -23,23 +25,37 @@ int mandelbrot<T>(Image &image, int left, int top, int width, int height, const 
 				u = nextu;
 				i++;
 			}
+#elif 0
+			const T cu = 0.35, cv = 0.35;
+			T u = u0, v = v0;
+
+			int i = 0;
+			while (u * u + v * v < max_radius && i < n) {
+				T nextu = u * u - v * v + cu;
+				v = 2 * u * v + cv;
+				u = nextu;
+				i++;
+			}
+#else
+			T u = u0, v = v0;
+
+			int i = 0;
+			while (u * u + v * v < max_radius && i < n) {
+				T nextu = u * u - v * v + u0;
+				v = abs(2 * u * v) + v0;
+				u = nextu;
+				i++;
+			}
+
+#endif
 
 			int idx = x + y * image.width;
 			if (i == n)
 				pixels[idx] = 0;
 			else {
-				// pixels[idx] = palette[i % palette_size];
-				if (i & 1)
-					pixels[idx] = palette.hi[i/2 % palette_size];
-				else
-					pixels[idx] = palette.lo[i/2 % palette_size];
+				int row = i & 3;
+				pixels[idx] = palette.color[row][i / 4 % palette_size];
 			}
-#if 0
-			if (x % 20 == 0 || y % 20 == 0)
-				pixels[idx] = 0;
-			else
-				pixels[idx] = palette[20];
-#endif
 		}
 	}
 	return 0;

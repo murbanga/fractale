@@ -4,9 +4,9 @@
 
 class pool {
 	public:
-	pool() : finished(0) {}
+	pool() : cancel(true), finished(0) {}
 
-	pool(std::function<void(int)> g) : finished(0) {}
+	pool(std::function<void(int)> g) : cancel(true), finished(0) {}
 
 	~pool() { join(); }
 
@@ -15,7 +15,7 @@ class pool {
 		cancel = false;
 		finished = 0;
 		for (int i = 0; i < nthreads; ++i) {
-			//printf("thread%d\n", i);
+			// printf("thread%d\n", i);
 			t.push_back(std::thread([i, iterations, f, this]() {
 				for (int j = 0; !cancel && j < iterations; ++j)
 					f(i * iterations + j);

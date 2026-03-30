@@ -86,8 +86,9 @@ template <typename T> Rect<fp> update_fractal(Image &image, const Rect<T> &next_
 {
 	Rect<T> fractal = fix_aspect_ratio(next_fractal, image.width, image.height);
 
-	printf("running fractal of [%s,%s,%s,%s]\nto [%d,%d]\n", fptostr(fractal.x0).c_str(), fptostr(fractal.x1).c_str(), fptostr(fractal.y0).c_str(), fptostr(fractal.y1).c_str(),
-	       image.width, image.height);
+	printf("running fractal of [%s,%s,%s,%s]\nto [%d,%d]\n", fptostr(fractal.x0).c_str(),
+	       fptostr(fractal.x1).c_str(), fptostr(fractal.y0).c_str(), fptostr(fractal.y1).c_str(), image.width,
+	       image.height);
 
 	prof.start();
 	prog_info.progress_num = 0;
@@ -96,6 +97,7 @@ template <typename T> Rect<fp> update_fractal(Image &image, const Rect<T> &next_
 #if 1
 	const int nthreads = min(16, (int)thread::hardware_concurrency());
 
+	calc_pool.join();
 	calc_pool.start(nthreads, (image.height + 1) / nthreads, [&image, fractal](int i) {
 		mandelbrot(image, 0, i, image.width, min(i + 1, image.height), fractal, max_iterations, palette);
 		prog_info.progress_num++;
@@ -160,11 +162,48 @@ Rect<fp> invoke_fractal(Precision precision, Image &image, const Rect<int> &drag
 
 void key(GLFWwindow *window, int key, int scancode, int action, int flags)
 {
+	constexpr int move_offset = 100;
+	Rect<int> move{-1, -1, -1, -1};
+
+	// esc
 	if (key == 256 && scancode == 1) {
 		if (action == GLFW_PRESS)
 			glfwSetWindowShouldClose(window, true);
 	}
-	printf("key %d %d %d %d\n", key, scancode, action, flags);
+#if 0
+	// down
+	else if (key == 264 && scancode == 336) {
+		printf("down\n");
+		move.x0 = 0;
+		move.y0 = move_offset;
+		move.x1 = image.width;
+		move.y1 = image.height + move_offset;
+	}
+	// up
+	else if (key == 265 && scancode == 328) {
+		printf("up\n");
+		move.x0 = 0;
+		move.y0 = -move_offset;
+		move.x1 = image.width;
+		move.y1 = image.height - move_offset;
+	}
+	// left
+	else if (key == 263 && scancode == 331) {
+		printf("left\n");
+	}
+	// eight
+	else if (key == 262 && scancode == 333) {
+		printf("right\b");
+	} else {
+		printf("unknown key %d %d %d %d\n", key, scancode, action, flags);
+	}
+
+	if (move.valid())
+	{
+		fractal = invoke_fractal(static_cast<Precision>(precision), image, move, fractal);
+		glfwPostEmptyEvent();
+	}
+#endif
 }
 
 void mouse(GLFWwindow *window, int button, int state, int flags)
@@ -385,9 +424,9 @@ int main(int argc, char **argv)
 	image.buf = new uint8_t[image.buf_size];
 
 	const float ar = float(image.width) / float(image.height);
-	const float scale = 0.003f;
-	fractal.x0 = -image.width / 2 * scale - 1;
-	fractal.x1 = +image.width / 2 * scale - 1;
+	const float scale = 0.004f;
+	fractal.x0 = -image.width / 2 * scale;
+	fractal.x1 = +image.width / 2 * scale;
 	fractal.y0 = -image.width / ar / 2 * scale;
 	fractal.y1 = +image.width / ar / 2 * scale;
 
