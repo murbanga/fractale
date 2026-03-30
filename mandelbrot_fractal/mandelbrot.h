@@ -1,4 +1,21 @@
 #pragma once
+#include <variant>
+
+#define LARGE_NUMBERS 1
+
+#if LARGE_NUMBERS
+#define BOOST_MP_USE_QUAD
+//#include <boost/multiprecision/float128.hpp>
+#include <boost/multiprecision/cpp_bin_float.hpp>
+
+using float128 = boost::multiprecision::number<boost::multiprecision::cpp_bin_float<128>>;
+using fp = std::variant<float, double, float128>;
+#else
+using fp = std::variant<float, double>;
+#endif
+
+#include "palette.h"
+
 
 template <typename T> struct Rect {
 	T x0;
@@ -22,6 +39,15 @@ struct Image {
 	int idx = 0;
 };
 
+template <typename T> Rect<T> collapse(const Rect<fp> &fractal)
+{
+	return { get<T>(fractal.x0), get<T>(fractal.x1), get<T>(fractal.y0), get<T>(fractal.y1) };
+}
+
+template <typename A, typename B> A e(B b) { return static_cast<A>(b); }
+
+template <typename A> A e(const float128 &b) { return b.convert_to<A>(); }
+
 template <typename T>
 int mandelbrot(Image &image, int left, int top, int width, int height, const Rect<T> &r, int n,
-               const uint32_t *palette);
+               const Palette &palette);

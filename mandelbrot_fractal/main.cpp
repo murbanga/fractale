@@ -5,20 +5,6 @@
 
 #include <list>
 #include <algorithm>
-#include <variant>
-
-#define LARGE_NUMBERS 1
-
-#if LARGE_NUMBERS
-#define BOOST_MP_USE_QUAD
-//#include <boost/multiprecision/float128.hpp>
-#include <boost/multiprecision/cpp_bin_float.hpp>
-
-using float128 = boost::multiprecision::number<boost::multiprecision::cpp_bin_float<128>>;
-using fp = std::variant<float, double, float128>;
-#else
-using fp = std::variant<float, double>;
-#endif
 
 #include <glad/gl.h>
 #include <GL/glu.h>
@@ -47,7 +33,8 @@ static GLuint tex;
 static Image image;
 
 static int max_iterations = 1024;
-static uint32_t palette[1024];
+
+Palette palette;
 
 static bool is_dragging = false;
 static Rect<int> drag = {-1, -1, -1, -1};
@@ -64,6 +51,20 @@ static int precision = static_cast<int>(Precision::Single);
 constexpr int smoothed_n = 60;
 static double fps = 0;
 static double smoothed_fps[smoothed_n];
+
+template <typename T> Rect<fp> f(Precision p, const Rect<T> &s)
+{
+	switch (p) {
+	case Precision::Single:
+		return {e<float>(s.x0), e<float>(s.x1), e<float>(s.y0), e<float>(s.y1)};
+	case Precision::Double:
+		return {e<double>(s.x0), e<double>(s.x1), e<double>(s.y0), e<double>(s.y1)};
+	case Precision::Large:
+		return {(float128)s.x0, (float128)s.x1, (float128)s.y0, (float128)s.y1};
+	}
+	assert(false);
+	return {};
+}
 
 template <typename T> Rect<T> fix_aspect_ratio(const Rect<T> &model, int width, int height)
 {
@@ -85,8 +86,8 @@ template <typename T> Rect<fp> update_fractal(Image &image, const Rect<T> &next_
 {
 	Rect<T> fractal = fix_aspect_ratio(next_fractal, image.width, image.height);
 
-	printf("running fractal of [%f,%f,%f,%f]\nto [%d,%d]\n", fractal.x0, fractal.x1, fractal.y0, fractal.y1,
-	       image.width, image.height);
+	//	printf("running fractal of [%f,%f,%f,%f]\nto [%d,%d]\n", fractal.x0, fractal.x1, fractal.y0, fractal.y1,
+	//	       image.width, image.height);
 
 	prof.start();
 	prog_info.progress_num = 0;
@@ -108,11 +109,6 @@ template <typename T> Rect<fp> update_fractal(Image &image, const Rect<T> &next_
 	return {fractal.x0, fractal.x1, fractal.y0, fractal.y1};
 }
 
-template <typename T> Rect<T> collapse(const Rect<fp> &fractal)
-{
-	return {get<T>(fractal.x0), get<T>(fractal.x1), get<T>(fractal.y0), get<T>(fractal.y1)};
-}
-
 template <typename T> Rect<fp> update_fractal(Image &image, const Rect<int> &d, const Rect<fp> &fractal)
 {
 	Rect<T> next_fractal, old_fractal = collapse<T>(fractal);
@@ -127,24 +123,6 @@ template <typename T> Rect<fp> update_fractal(Image &image, const Rect<int> &d, 
 	}
 
 	return update_fractal(image, next_fractal);
-}
-
-template <typename A, typename B> A e(B b) { return static_cast<A>(b); }
-
-template <typename A> A e(const float128 &b) { return b.convert_to<A>(); }
-
-template <typename T> Rect<fp> f(Precision p, const Rect<T> &s)
-{
-	switch (p) {
-	case Precision::Single:
-		return {e<float>(s.x0), e<float>(s.x1), e<float>(s.y0), e<float>(s.y1)};
-	case Precision::Double:
-		return {e<double>(s.x0), e<double>(s.x1), e<double>(s.y0), e<double>(s.y1)};
-	case Precision::Large:
-		return {(float128)s.x0, (float128)s.x1, (float128)s.y0, (float128)s.y1};
-	}
-	assert(false);
-	return {};
 }
 
 Rect<fp> convert(const Rect<fp> &r, Precision newp, Precision oldp)
@@ -172,6 +150,7 @@ Rect<fp> invoke_fractal(Precision precision, Image &image, const Rect<int> &drag
 		break;
 #if LARGE_NUMBERS
 	case Precision::Large:
+		return update_fractal<float128>(image, drag, fractal);
 		break;
 #endif
 	}
@@ -337,8 +316,10 @@ void draw_ui(GLFWwindow *window)
 
 	if (Button("zoom out")) {
 		if (!zoom_history.empty()) {
-			fractal = invoke_fractal(static_cast<Precision>(precision), image, drag.normalize(),
-			                         zoom_history.back());
+			Rect<fp> prev = zoom_history.back();
+			fractal = invoke_fractal(
+			    static_cast<Precision>(precision), image, drag.normalize(),
+			    convert(prev, static_cast<Precision>(precision), static_cast<Precision>(prev.x0.index())));
 			zoom_history.pop_back();
 		}
 	}
@@ -380,16 +361,16 @@ void draw_ui(GLFWwindow *window)
 		v += smoothed_fps[i];
 	v /= smoothed_n;
 	Text("fps %.2f", v);
+	/*	Separator();
+	        Text("area");
+	        Text("%e - %e", fractal.x0, fractal.y0);
+	        Text("%e - %e", fractal.x1, fractal.y1);
+	        //Separator();*/
 	End();
 }
 
 int main(int argc, char **argv)
 {
-	int palette_size = sizeof(palette) / sizeof(palette[0]);
-	for (int i = 0; i < palette_size; ++i) {
-		palette[i] = hsv2rgb(double(i) * 360 * 8 / palette_size, 0.8, 0.8);
-	}
-
 	image.width = 1280;
 	image.height = 720;
 	image.buf_size = image.width * image.height * 4;
@@ -480,6 +461,8 @@ int main(int argc, char **argv)
 
 	glfwDestroyWindow(window);
 	glfwTerminate();
+
+	calc_pool.join();
 
 	delete[] image.buf;
 

@@ -1,12 +1,12 @@
 #pragma once
 
-uint32_t pack(double r, double g, double b)
+inline uint32_t pack(double r, double g, double b)
 {
 	return (static_cast<uint32_t>(r * 255) & 0xFF) | ((static_cast<uint32_t>(g * 255) & 0xFF) << 8) |
 		((static_cast<uint32_t>(b * 255) & 0xFF) << 16);
 }
 
-uint32_t hsv2rgb(double h, double s, double v)
+inline uint32_t hsv2rgb(double h, double s, double v)
 {
 	double hh, p, q, t, ff;
 	long i;
@@ -62,4 +62,19 @@ uint32_t hsv2rgb(double h, double s, double v)
 	}
 	return pack(r, g, b);
 }
+
+constexpr size_t palette_size = 1024;
+struct Palette
+{
+	Palette()
+	{
+		for (int i = 0; i < palette_size; ++i) {
+			hi[i] = hsv2rgb(double(i) * 360 * 8 / palette_size, 0.8, 0.8);
+			lo[i] = hsv2rgb(double(i) * 360 * 8 / palette_size, 0.8, 0.4);
+		}
+	}
+
+	uint32_t hi[palette_size];
+	uint32_t lo[palette_size];
+};
 

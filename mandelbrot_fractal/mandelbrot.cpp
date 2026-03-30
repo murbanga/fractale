@@ -3,9 +3,9 @@
 
 template <typename T>
 int mandelbrot<T>(Image &image, int left, int top, int width, int height, const Rect<T> &r, int n,
-                  const uint32_t *palette)
+                  const Palette &palette)
 {
-	constexpr T max_radius = 2 * 2;
+	const T max_radius = 2 * 2;
 	const T scalex = (r.x1 - r.x0) / image.width;
 	const T scaley = (r.y1 - r.y0) / image.height;
 	uint32_t *pixels = reinterpret_cast<uint32_t *>(image.buf);
@@ -27,9 +27,13 @@ int mandelbrot<T>(Image &image, int left, int top, int width, int height, const 
 			int idx = x + y * image.width;
 			if (i == n)
 				pixels[idx] = 0;
-			else
-				pixels[idx] = palette[i];
-
+			else {
+				// pixels[idx] = palette[i % palette_size];
+				if (i & 1)
+					pixels[idx] = palette.hi[i/2];
+				else
+					pixels[idx] = palette.lo[i/2];
+			}
 #if 0
 			if (x % 20 == 0 || y % 20 == 0)
 				pixels[idx] = 0;
@@ -41,10 +45,11 @@ int mandelbrot<T>(Image &image, int left, int top, int width, int height, const 
 	return 0;
 }
 
-template
-int mandelbrot<float>(Image &image, int left, int top, int width, int height, const Rect<float> &r, int n,
-                      const uint32_t *palette);
+template int mandelbrot<float>(Image &image, int left, int top, int width, int height, const Rect<float> &r, int n,
+                               const Palette &palette);
 
-template
-int mandelbrot<double>(Image &image, int left, int top, int width, int height, const Rect<double> &r, int n,
-                       const uint32_t *palette);
+template int mandelbrot<double>(Image &image, int left, int top, int width, int height, const Rect<double> &r, int n,
+                                const Palette &palette);
+
+template int mandelbrot<float128>(Image &image, int left, int top, int width, int height, const Rect<float128> &r,
+                                  int n, const Palette &palette);
