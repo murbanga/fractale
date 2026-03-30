@@ -14,7 +14,8 @@
 //#include <boost/multiprecision/float128.hpp>
 #include <boost/multiprecision/cpp_bin_float.hpp>
 
-using fp = std::variant<float, double, boost::multiprecision::cpp_bin_float<128>>;
+using float128 = boost::multiprecision::number<boost::multiprecision::cpp_bin_float<128>>;
+using fp = std::variant<float, double, float128>;
 #else
 using fp = std::variant<float, double>;
 #endif
@@ -58,7 +59,7 @@ static pool calc_pool;
 
 static Profiler prof;
 static struct progress_info prog_info;
-static int curr_precision = static_cast<int>(Precision::Single);
+static int precision = static_cast<int>(Precision::Single);
 
 constexpr int smoothed_n = 60;
 static double fps = 0;
@@ -80,9 +81,12 @@ template <typename T> Rect<T> fix_aspect_ratio(const Rect<T> &model, int width, 
 	return {model.x0, model.x0 + model_width, model.y0, model.y0 + model_height};
 }
 
-template <typename T> void update_fractal(Image &image, const Rect<T> &next_fractal)
+template <typename T> Rect<fp> update_fractal(Image &image, const Rect<T> &next_fractal)
 {
-	fractal = fix_aspect_ratio(next_fractal, image.width, image.height);
+	Rect<T> fractal = fix_aspect_ratio(next_fractal, image.width, image.height);
+
+	printf("running fractal of [%f,%f,%f,%f]\nto [%d,%d]\n", fractal.x0, fractal.x1, fractal.y0, fractal.y1,
+	       image.width, image.height);
 
 	prof.start();
 	prog_info.progress_num = 0;
@@ -91,47 +95,88 @@ template <typename T> void update_fractal(Image &image, const Rect<T> &next_frac
 #if 1
 	const int nthreads = min(16, (int)thread::hardware_concurrency());
 
-	calc_pool.start(nthreads, (image.height + 1) / nthreads, [&](int i) {
+	calc_pool.start(nthreads, (image.height + 1) / nthreads, [&image, fractal](int i) {
 		mandelbrot(image, 0, i, image.width, min(i + 1, image.height), fractal, max_iterations, palette);
 		prog_info.progress_num++;
 	});
 #else
-	mandelbrot_plain(image.buf, 0, 0, image.width, image.height, image.width, fractal, max_iterations, palette);
-	prog_info.progress = 100;
+	mandelbrot(image, 0, 0, image.width, image.height, fractal, max_iterations, palette);
+	prog_info.progress_den = image.height;
 #endif
 	image.idx++;
+
+	return {fractal.x0, fractal.x1, fractal.y0, fractal.y1};
 }
 
-template <typename T> void update_fractal(Image &image, const Rect<int> &d)
+template <typename T> Rect<T> collapse(const Rect<fp> &fractal)
 {
-	Rect<T> next_fractal;
+	return {get<T>(fractal.x0), get<T>(fractal.x1), get<T>(fractal.y0), get<T>(fractal.y1)};
+}
+
+template <typename T> Rect<fp> update_fractal(Image &image, const Rect<int> &d, const Rect<fp> &fractal)
+{
+	Rect<T> next_fractal, old_fractal = collapse<T>(fractal);
 
 	if (drag.valid()) {
-		next_fractal.x0 = (fractal.x1 - fractal.x0) * d.x0 / image.width + fractal.x0;
-		next_fractal.x1 = (fractal.x1 - fractal.x0) * d.x1 / image.width + fractal.x0;
-		next_fractal.y0 = (fractal.y1 - fractal.y0) * d.y0 / image.height + fractal.y0;
-		next_fractal.y1 = (fractal.y1 - fractal.y0) * d.y1 / image.height + fractal.y0;
+		next_fractal.x0 = (old_fractal.x1 - old_fractal.x0) * d.x0 / image.width + old_fractal.x0;
+		next_fractal.x1 = (old_fractal.x1 - old_fractal.x0) * d.x1 / image.width + old_fractal.x0;
+		next_fractal.y0 = (old_fractal.y1 - old_fractal.y0) * d.y0 / image.height + old_fractal.y0;
+		next_fractal.y1 = (old_fractal.y1 - old_fractal.y0) * d.y1 / image.height + old_fractal.y0;
 	} else {
-		next_fractal = fractal;
+		next_fractal = old_fractal;
 	}
 
-	update_fractal<T>(image, next_fractal);
+	return update_fractal(image, next_fractal);
 }
 
-void invoke_fractal(Precision precision, Image &image, const Rect<int> &drag, int n, const uint32_t *palette)
+template <typename A, typename B> A e(B b) { return static_cast<A>(b); }
+
+template <typename A> A e(const float128 &b) { return b.convert_to<A>(); }
+
+template <typename T> Rect<fp> f(Precision p, const Rect<T> &s)
+{
+	switch (p) {
+	case Precision::Single:
+		return {e<float>(s.x0), e<float>(s.x1), e<float>(s.y0), e<float>(s.y1)};
+	case Precision::Double:
+		return {e<double>(s.x0), e<double>(s.x1), e<double>(s.y0), e<double>(s.y1)};
+	case Precision::Large:
+		return {(float128)s.x0, (float128)s.x1, (float128)s.y0, (float128)s.y1};
+	}
+	assert(false);
+	return {};
+}
+
+Rect<fp> convert(const Rect<fp> &r, Precision newp, Precision oldp)
+{
+	switch (oldp) {
+	case Precision::Single:
+		return f(newp, collapse<float>(r));
+	case Precision::Double:
+		return f(newp, collapse<double>(r));
+	case Precision::Large:
+		return f(newp, collapse<float128>(r));
+	}
+	assert(false);
+	return {};
+}
+
+Rect<fp> invoke_fractal(Precision precision, Image &image, const Rect<int> &drag, const Rect<fp> fractal)
 {
 	switch (precision) {
 	case Precision::Single:
-		update_fractal<float>(image, drag);
+		return update_fractal<float>(image, drag, fractal);
 		break;
 	case Precision::Double:
-		// update_fractal<double>(image, drag);
+		return update_fractal<double>(image, drag, fractal);
 		break;
 #if LARGE_NUMBERS
 	case Precision::Large:
 		break;
 #endif
 	}
+	assert(false);
+	return {};
 }
 
 void key(GLFWwindow *window, int key, int scancode, int action, int flags)
@@ -221,7 +266,7 @@ void display(GLFWwindow *window)
 		image.width = width;
 		image.height = height;
 
-		update_fractal<float>(image, drag.normalize());
+		fractal = invoke_fractal(static_cast<Precision>(precision), image, drag.normalize(), fractal);
 	}
 
 	glViewport(0, 0, width, height);
@@ -280,7 +325,7 @@ void draw_ui(GLFWwindow *window)
 
 			zoom_history.push_back(fractal);
 
-			update_fractal<float>(image, drag.normalize());
+			fractal = invoke_fractal(static_cast<Precision>(precision), image, drag.normalize(), fractal);
 
 			drag.x0 = drag.y0 = drag.x1 = drag.y1 = -1;
 		}
@@ -292,13 +337,14 @@ void draw_ui(GLFWwindow *window)
 
 	if (Button("zoom out")) {
 		if (!zoom_history.empty()) {
-			update_fractal(image, zoom_history.back());
+			fractal = invoke_fractal(static_cast<Precision>(precision), image, drag.normalize(),
+			                         zoom_history.back());
 			zoom_history.pop_back();
 		}
 	}
 
 	if (Button("update")) {
-		update_fractal(image, fractal);
+		fractal = invoke_fractal(static_cast<Precision>(precision), image, drag, fractal);
 	}
 
 	const char *items =
@@ -309,7 +355,13 @@ void draw_ui(GLFWwindow *window)
 #endif
 	    ;
 
-	if (Combo("Precision", &curr_precision, items)) {
+	int new_precision = precision;
+	if (Combo("Precision", &new_precision, items)) {
+		if (new_precision != precision) {
+			fractal =
+			    convert(fractal, static_cast<Precision>(new_precision), static_cast<Precision>(precision));
+			precision = new_precision;
+		}
 	}
 
 	if (InputInt("Iterations", &max_iterations)) {
@@ -385,7 +437,8 @@ int main(int argc, char **argv)
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glDisable(GL_TEXTURE_2D);
 
-	update_fractal<float>(image, {0, 0, image.width, image.height});
+	fractal = invoke_fractal(static_cast<Precision>(precision), image, Rect<int>{0, 0, image.width, image.height},
+	                         fractal);
 
 	double prev_time = Profiler::get();
 	int smoothed_i = 0;

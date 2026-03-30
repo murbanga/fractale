@@ -11,7 +11,7 @@ template <typename T> struct Rect {
 		return { min(x0, x1), max(x0, x1), min(y0, y1), max(y0, y1) };
 	}
 
-	bool valid() const { return x0 >= 0 && y0 >= 0 && x1 >= 0 && y1 >= 0; }
+	bool valid() const { return x0 >= 0 && y0 >= 0; /* && x1 >= 0 && y1 >= 0; */ }
 };
 
 struct Image {

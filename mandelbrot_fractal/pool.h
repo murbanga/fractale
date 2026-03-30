@@ -14,12 +14,14 @@ class pool {
 	{
 		cancel = false;
 		finished = 0;
-		for (int i = 0; i < nthreads; ++i)
+		for (int i = 0; i < nthreads; ++i) {
+			//printf("thread%d\n", i);
 			t.push_back(std::thread([i, iterations, f, this]() {
 				for (int j = 0; !cancel && j < iterations; ++j)
 					f(i * iterations + j);
 				finished++;
 			}));
+		}
 	}
 
 	void join()
