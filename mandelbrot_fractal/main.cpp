@@ -86,8 +86,8 @@ template <typename T> Rect<fp> update_fractal(Image &image, const Rect<T> &next_
 {
 	Rect<T> fractal = fix_aspect_ratio(next_fractal, image.width, image.height);
 
-	//	printf("running fractal of [%f,%f,%f,%f]\nto [%d,%d]\n", fractal.x0, fractal.x1, fractal.y0, fractal.y1,
-	//	       image.width, image.height);
+	printf("running fractal of [%s,%s,%s,%s]\nto [%d,%d]\n", fptostr(fractal.x0).c_str(), fptostr(fractal.x1).c_str(), fptostr(fractal.y0).c_str(), fptostr(fractal.y1).c_str(),
+	       image.width, image.height);
 
 	prof.start();
 	prog_info.progress_num = 0;
@@ -361,11 +361,19 @@ void draw_ui(GLFWwindow *window)
 		v += smoothed_fps[i];
 	v /= smoothed_n;
 	Text("fps %.2f", v);
-	/*	Separator();
-	        Text("area");
-	        Text("%e - %e", fractal.x0, fractal.y0);
-	        Text("%e - %e", fractal.x1, fractal.y1);
-	        //Separator();*/
+	Separator();
+#if 0
+	Text("area");
+	Text("x0 %s", fptostr(fractal.x0).c_str());
+	Text("x1 %s", fptostr(fractal.x1).c_str());
+	Text("y0 %s", fptostr(fractal.y0).c_str());
+	Text("y1 %s", fptostr(fractal.y1).c_str());
+#else
+	static char buf[2048];
+	snprintf(buf, sizeof(buf), "x0 %s\nx1 %s\ny0 %s\ny1 %s\n", fptostr(fractal.x0).c_str(),
+	         fptostr(fractal.x1).c_str(), fptostr(fractal.y0).c_str(), fptostr(fractal.y1).c_str());
+	InputTextMultiline("area", buf, strlen(buf), ImVec2(0, 0), ImGuiInputTextFlags_ReadOnly);
+#endif
 	End();
 }
 

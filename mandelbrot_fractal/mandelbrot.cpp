@@ -30,9 +30,9 @@ int mandelbrot<T>(Image &image, int left, int top, int width, int height, const 
 			else {
 				// pixels[idx] = palette[i % palette_size];
 				if (i & 1)
-					pixels[idx] = palette.hi[i/2];
+					pixels[idx] = palette.hi[i/2 % palette_size];
 				else
-					pixels[idx] = palette.lo[i/2];
+					pixels[idx] = palette.lo[i/2 % palette_size];
 			}
 #if 0
 			if (x % 20 == 0 || y % 20 == 0)
