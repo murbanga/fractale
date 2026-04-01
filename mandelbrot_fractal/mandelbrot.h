@@ -1,15 +1,24 @@
 #pragma once
 #include <variant>
+#include <string>
+#include <assert.h>
 
-#define LARGE_NUMBERS 1
+#define LARGE_NUMBERS 0
 
 #if LARGE_NUMBERS
+#if 0
 #define BOOST_MP_USE_QUAD
 //#include <boost/multiprecision/float128.hpp>
 #include <boost/multiprecision/cpp_bin_float.hpp>
 
 using float128 = boost::multiprecision::number<boost::multiprecision::cpp_bin_float<96>>;
 using fp = std::variant<float, double, float128>;
+#else
+#include "fixed128.h"
+// FIXME: naming
+using float128 = Fixed128;
+using fp = std::variant<float, double, float128>;
+#endif
 #else
 using fp = std::variant<float, double>;
 #endif
@@ -42,7 +51,9 @@ template <typename T> Rect<T> collapse(const Rect<fp> &fractal)
 
 template <typename A, typename B> A e(B b) { return static_cast<A>(b); }
 
+#if LANGE_NUMBERS
 template <typename A> A e(const float128 &b) { return b.convert_to<A>(); }
+#endif
 
 inline std::string fptostr(const fp &a)
 {
@@ -58,10 +69,12 @@ inline std::string fptostr(const fp &a)
 		snprintf(buf, sizeof(buf), "%.16f", x);
 		return buf;
 	}
+#if LARGE_NUMBERS
 	case 2: {
 		float128 x = std::get<2>(a);
 		return x.str();
 	}
+#endif
 	}
 	assert(false);
 	return "";

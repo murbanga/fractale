@@ -68,7 +68,7 @@ struct Palette {
 	Palette()
 	{
 		for (int i = 0; i < palette_size; ++i) {
-			double h = (240 + i * 8 * 360 / palette_size) % 360;
+			double h = (double)((240 + i * 8 * 360 / palette_size) % 360);
 			color[0][i] = hsv2rgb(h, 0.8, 0.8);
 			color[1][i] = hsv2rgb(h, 0.8, 0.6);
 			color[2][i] = hsv2rgb(h, 0.8, 0.4);

@@ -54,7 +54,7 @@ int mandelbrot<T>(Image &image, int left, int top, int width, int height, const 
 				pixels[idx] = 0;
 			else {
 				int row = i & 3;
-				pixels[idx] = palette.color[row][i / 4 % palette_size];
+				pixels[idx] = palette.color[0][i % palette_size];//palette.color[row][(i / 4) % palette_size];
 			}
 		}
 	}
@@ -67,5 +67,7 @@ template int mandelbrot<float>(Image &image, int left, int top, int width, int h
 template int mandelbrot<double>(Image &image, int left, int top, int width, int height, const Rect<double> &r, int n,
                                 const Palette &palette);
 
+#if LARGE_NUMBERS
 template int mandelbrot<float128>(Image &image, int left, int top, int width, int height, const Rect<float128> &r,
                                   int n, const Palette &palette);
+#endif

@@ -59,8 +59,10 @@ template <typename T> Rect<fp> f(Precision p, const Rect<T> &s)
 		return {e<float>(s.x0), e<float>(s.x1), e<float>(s.y0), e<float>(s.y1)};
 	case Precision::Double:
 		return {e<double>(s.x0), e<double>(s.x1), e<double>(s.y0), e<double>(s.y1)};
+#if LARGE_NUMBERS
 	case Precision::Large:
 		return {(float128)s.x0, (float128)s.x1, (float128)s.y0, (float128)s.y1};
+#endif
 	}
 	assert(false);
 	return {};
@@ -68,8 +70,8 @@ template <typename T> Rect<fp> f(Precision p, const Rect<T> &s)
 
 template <typename T> Rect<T> fix_aspect_ratio(const Rect<T> &model, int width, int height)
 {
-	T window_ar = T(width) / T(height);
-	T model_width = model.x1 - model.x0;
+	/*double window_ar = double(width) / double(height);
+        T model_width = model.x1 - model.x0;
 	T model_height = model.y1 - model.y0;
 	T model_ar = model_width / model_height;
 
@@ -79,7 +81,8 @@ template <typename T> Rect<T> fix_aspect_ratio(const Rect<T> &model, int width, 
 		model_width = window_ar * model_height;
 	}
 
-	return {model.x0, model.x0 + model_width, model.y0, model.y0 + model_height};
+	return {model.x0, model.x0 + model_width, model.y0, model.y0 + model_height};*/
+	return model;
 }
 
 template <typename T> Rect<fp> update_fractal(Image &image, const Rect<T> &next_fractal)
@@ -134,8 +137,10 @@ Rect<fp> convert(const Rect<fp> &r, Precision newp, Precision oldp)
 		return f(newp, collapse<float>(r));
 	case Precision::Double:
 		return f(newp, collapse<double>(r));
+#if LARGE_NUMBERS
 	case Precision::Large:
 		return f(newp, collapse<float128>(r));
+#endif
 	}
 	assert(false);
 	return {};
@@ -162,15 +167,15 @@ Rect<fp> invoke_fractal(Precision precision, Image &image, const Rect<int> &drag
 
 void key(GLFWwindow *window, int key, int scancode, int action, int flags)
 {
-	constexpr int move_offset = 100;
-	Rect<int> move{-1, -1, -1, -1};
-
 	// esc
 	if (key == 256 && scancode == 1) {
 		if (action == GLFW_PRESS)
 			glfwSetWindowShouldClose(window, true);
 	}
 #if 0
+	constexpr int move_offset = 100;
+	Rect<int> move{ -1, -1, -1, -1 };
+
 	// down
 	else if (key == 264 && scancode == 336) {
 		printf("down\n");
@@ -418,6 +423,19 @@ void draw_ui(GLFWwindow *window)
 
 int main(int argc, char **argv)
 {
+	/* {
+		Fixed128 a = {0, 0};
+		Fixed128 b = {0, 4};
+		Fixed128 c = a - b;
+		printf("%16llx %16llx\n", c.hi, c.lo);
+
+		Fixed128 x = { 0x0001'0000'0000'0000ul , 0 };
+		Fixed128 y = { 0, 4 };
+		Fixed128 z = x * y;
+		printf("%16llx %16llx\n", c.hi, c.lo);
+
+	}*/
+
 	image.width = 1280;
 	image.height = 720;
 	image.buf_size = image.width * image.height * 4;
