@@ -2,8 +2,7 @@
 #include "mandelbrot.h"
 
 template <typename T>
-int mandelbrot<T>(Image &image, int left, int top, int width, int height, const Rect<T> &r, int n,
-                  const Palette &palette)
+int mandelbrot(Image &image, int left, int top, int width, int height, const Rect<T> &r, int n, const Palette &palette)
 {
 	const T max_radius = 2 * 2;
 	const T scalex = (r.x1 - r.x0) / image.width;
@@ -67,5 +66,7 @@ template int mandelbrot<float>(Image &image, int left, int top, int width, int h
 template int mandelbrot<double>(Image &image, int left, int top, int width, int height, const Rect<double> &r, int n,
                                 const Palette &palette);
 
+#if LARGE_NUMBERS
 template int mandelbrot<float128>(Image &image, int left, int top, int width, int height, const Rect<float128> &r,
                                   int n, const Palette &palette);
+#endif

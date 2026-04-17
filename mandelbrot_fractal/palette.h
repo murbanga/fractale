@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 inline uint32_t pack(double r, double g, double b)
 {
 	return (static_cast<uint32_t>(r * 255) & 0xFF) | ((static_cast<uint32_t>(g * 255) & 0xFF) << 8) |

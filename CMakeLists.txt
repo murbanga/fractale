@@ -6,6 +6,8 @@ add_subdirectory(glfw)
 
 if(WIN32)
 add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+else()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 endif()
 
 add_library(imgui
