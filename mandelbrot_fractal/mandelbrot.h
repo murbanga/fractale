@@ -3,15 +3,23 @@
 #include <string>
 #include <assert.h>
 
-#define LARGE_NUMBERS 0
+#if !defined(LARGE_NUMBERS)
+#define LARGE_NUMBERS 1
+#endif
 
 #if LARGE_NUMBERS
-#define BOOST_MP_USE_QUAD
-// #include <boost/multiprecision/float128.hpp>
-#include <boost/multiprecision/cpp_bin_float.hpp>
 
+#ifdef WIN32
+#define BOOST_MP_USE_QUAD
+#include <boost/multiprecision/cpp_bin_float.hpp>
 using float128 = boost::multiprecision::number<boost::multiprecision::cpp_bin_float<96>>;
+#else
+#include <boost/multiprecision/float128.hpp>
+using float128 = boost::multiprecision::float128;
+#endif
+
 using fp = std::variant<float, double, float128>;
+
 #else
 using fp = std::variant<float, double>;
 #endif
