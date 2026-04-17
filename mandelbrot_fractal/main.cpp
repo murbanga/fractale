@@ -59,8 +59,10 @@ template <typename T> Rect<fp> f(Precision p, const Rect<T> &s)
 		return {e<float>(s.x0), e<float>(s.x1), e<float>(s.y0), e<float>(s.y1)};
 	case Precision::Double:
 		return {e<double>(s.x0), e<double>(s.x1), e<double>(s.y0), e<double>(s.y1)};
+#if LARGE_NUMBERS
 	case Precision::Large:
 		return {(float128)s.x0, (float128)s.x1, (float128)s.y0, (float128)s.y1};
+#endif
 	}
 	assert(false);
 	return {};
@@ -134,8 +136,10 @@ Rect<fp> convert(const Rect<fp> &r, Precision newp, Precision oldp)
 		return f(newp, collapse<float>(r));
 	case Precision::Double:
 		return f(newp, collapse<double>(r));
+#if LARGE_NUMBERS
 	case Precision::Large:
 		return f(newp, collapse<float128>(r));
+#endif
 	}
 	assert(false);
 	return {};

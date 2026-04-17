@@ -1,6 +1,8 @@
 #pragma once
 #ifdef WIN32
 #include <windows.h>
+#else
+#include <sys/time.h>
 #endif
 
 #include <atomic>
@@ -71,5 +73,7 @@ public:
 	}
 private:
 	uint64_t beg;
+#ifdef WIN32
 	LARGE_INTEGER freq;
+#endif
 };
