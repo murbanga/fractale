@@ -28,9 +28,10 @@ enum class DragMode
 	MovingObject = 2,
 };
 
-static const int point_selection_max_distance_px = 4;
+static const int point_selection_max_distance_px = 10;
 
 static OperatorMode operator_mode;
+static bool is_draw_model = true;
 static double zoom = 2;
 static double modelx = 0;
 static double modely = 0;
@@ -264,13 +265,15 @@ void display(GLFWwindow *window)
 	glPushMatrix();
 	glTranslatef(0.f, 0.f, 1.f);
 	
-	glColor3f(1, 1, 1);
-	glBegin(GL_LINE_STRIP);
-	for (auto &pt : fractal.model)
-	{
-		glVertex2f(pt.x, pt.y);
+	if (is_draw_model || drag_mode == DragMode::MovingObject) {
+		glColor3f(1, 1, 1);
+		glBegin(GL_LINE_STRIP);
+		for (auto &pt : fractal.model)
+		{
+			glVertex2f(pt.x, pt.y);
+		}
+		glEnd();
 	}
-	glEnd();
 
 	glPointSize(4.0);
 	glBegin(GL_POINTS);
@@ -289,13 +292,7 @@ void display(GLFWwindow *window)
 	}
 	glEnd();
 
-	glColor3f(1, 1, 1);
-	/*glBegin(GL_LINE_STRIP);
-	for (auto &pt : fractal.current)
-	{
-		glVertex2f(pt.x, pt.y);
-	}
-	glEnd();*/
+	glColor3f(0.8, 0.8, 0.8);
 	glDrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(fractal.current_size));
 
 	glPopMatrix();
@@ -326,8 +323,10 @@ void draw_ui()
 		++fractal;
 		update_va(current_array, current_buf, fractal.current, fractal.current_size);
 	}
+	Text(operator_mode == OperatorMode::Constructing ? "constructing" : "running");
 	Text("model %llu points", fractal.model.size());
 	Text("actual %llu points", fractal.current_size);
+	Checkbox("draw model", &is_draw_model);
 	End();
 }
 
